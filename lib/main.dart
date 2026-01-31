@@ -237,26 +237,37 @@ class _VaultPageState extends State<VaultPage> {
   String _statusMessage = '';
 
   @override
+  @override
   void initState() {
     super.initState();
+    _vaultItems = {};
     _decryptVault();
   }
 
-  void _decryptVault() {
+  Future<void> _decryptVault() async {
     try {
-      final encryptedData = widget.vaultResponse['data'] as String? ?? '';
-      if (encryptedData.isEmpty) {
-        _vaultItems = {};
-      } else {
-        _vaultItems = _encryptionService.decryptVault(
-          encryptedData,
-          widget.password,
-          widget.salt,
-        );
+      final blob = widget.vaultResponse['blob'];
+
+      if (blob == null) {
+        setState(() {
+          _vaultItems = {};
+        });
+        return;
       }
+
+      final decrypted = await _authService.decryptVault(
+        Map<String, dynamic>.from(blob),
+        widget.password,
+      );
+
+      setState(() {
+        _vaultItems = Map<String, String>.from(decrypted);
+      });
     } catch (e) {
-      _vaultItems = {};
-      _showError('Failed to decrypt vault: $e');
+      setState(() {
+        _vaultItems = {};
+      });
+      _showError('Failed to decrypt vault');
     }
   }
 

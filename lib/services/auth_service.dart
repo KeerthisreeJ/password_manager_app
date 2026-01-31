@@ -9,10 +9,6 @@ class AuthService {
   static const String baseUrl =
       'https://diaphragmatically-scimitared-oda.ngrok-free.dev';
 
-  /* =========================
-     AUTH KEY DERIVATION
-     ========================= */
-
   Future<Uint8List> _derive(String password, Uint8List salt) async {
     final argon2 = Argon2BytesGenerator();
 
@@ -33,10 +29,6 @@ class AuthService {
 
     return hash;
   }
-
-  /* =========================
-     VAULT ENCRYPTION
-     ========================= */
 
   Future<Map<String, String>> encryptVault(
     Map<String, dynamic> vault,
@@ -63,8 +55,7 @@ class AuthService {
     );
 
     // Python concatenates MAC to ciphertext
-    final combinedCiphertext =
-        secretBox.cipherText + secretBox.mac.bytes;
+    final combinedCiphertext = secretBox.cipherText + secretBox.mac.bytes;
 
     return {
       'vault_salt': _bytesToHex(vaultSalt),
@@ -73,13 +64,39 @@ class AuthService {
     };
   }
 
-  /* =========================
-     API CALLS
-     ========================= */
+  Future<Map<String, dynamic>> decryptVault(
+    Map<String, dynamic> blob,
+    String password,
+  ) async {
+    final vaultSalt = _hexToBytes(blob['vault_salt']);
+    final nonce = _hexToBytes(blob['nonce']);
+    final ciphertext = _hexToBytes(blob['ciphertext']);
+
+    // Split ciphertext and MAC (last 16 bytes)
+    final cipherTextOnly = ciphertext.sublist(0, ciphertext.length - 16);
+    final macBytes = ciphertext.sublist(ciphertext.length - 16);
+
+    final keyBytes = await _derive(password, vaultSalt);
+    final secretKey = SecretKey(keyBytes);
+
+    final algorithm = Xchacha20.poly1305Aead();
+
+    final secretBox = SecretBox(
+      cipherTextOnly,
+      nonce: nonce,
+      mac: Mac(macBytes),
+    );
+
+    final plaintext = await algorithm.decrypt(
+      secretBox,
+      secretKey: secretKey,
+    );
+
+    return jsonDecode(utf8.decode(plaintext));
+  }
 
   Future<Uint8List?> getAuthSalt(String username) async {
-    final response =
-        await http.get(Uri.parse('$baseUrl/auth_salt/$username'));
+    final response = await http.get(Uri.parse('$baseUrl/auth_salt/$username'));
 
     if (response.statusCode == 404) return null;
     if (response.statusCode != 200) {
@@ -138,7 +155,7 @@ class AuthService {
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch vault');
     }
-
+    print('rbody: ' + response.body);
     return json.decode(response.body);
   }
 
@@ -159,10 +176,6 @@ class AuthService {
 
     return response.statusCode == 200;
   }
-
-  /* =========================
-     HELPERS
-     ========================= */
 
   Uint8List _randomBytes(int length) {
     final rnd = Random.secure();
