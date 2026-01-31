@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'services/auth_service.dart';
+import 'services/encryption_service.dart';
+import 'dart:typed_data';
 
 void main() {
   runApp(const MyApp());
@@ -32,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
-  
+
   bool _isLoading = false;
   String _statusMessage = '';
 
@@ -62,7 +65,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // Check if user exists, register if not
       final salt = await _authService.getAuthSalt(username);
-      
+
       if (salt == null) {
         // User doesn't exist, register
         await _authService.register(username, password);
@@ -73,24 +76,27 @@ class _LoginPageState extends State<LoginPage> {
 
       // Login
       final token = await _authService.login(username, password);
-      
+
       if (token != null) {
         setState(() {
           _statusMessage = 'LOGIN OK';
         });
 
         // Fetch vault
-        final vault = await _authService.getVault(token);
-        
+        final vaultResponse = await _authService.getVault(token);
+        final salt = await _authService.getAuthSalt(username);
+
         if (!mounted) return;
-        
+
         // Navigate to vault page
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => VaultPage(
               token: token,
-              vaultData: vault,
+              password: password,
+              salt: salt!,
+              vaultResponse: vaultResponse,
             ),
           ),
         );
@@ -177,8 +183,8 @@ class _LoginPageState extends State<LoginPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _statusMessage.contains('FAILED') || 
-                             _statusMessage.contains('Error')
+                      color: _statusMessage.contains('FAILED') ||
+                              _statusMessage.contains('Error')
                           ? Colors.red.shade100
                           : Colors.green.shade100,
                       borderRadius: BorderRadius.circular(8),
@@ -186,8 +192,8 @@ class _LoginPageState extends State<LoginPage> {
                     child: Text(
                       _statusMessage,
                       style: TextStyle(
-                        color: _statusMessage.contains('FAILED') || 
-                               _statusMessage.contains('Error')
+                        color: _statusMessage.contains('FAILED') ||
+                                _statusMessage.contains('Error')
                             ? Colors.red.shade900
                             : Colors.green.shade900,
                       ),
@@ -204,15 +210,235 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class VaultPage extends StatelessWidget {
+class VaultPage extends StatefulWidget {
   final String token;
-  final Map<String, dynamic> vaultData;
+  final String password;
+  final Uint8List salt;
+  final Map<String, dynamic> vaultResponse;
 
   const VaultPage({
     super.key,
     required this.token,
-    required this.vaultData,
+    required this.password,
+    required this.salt,
+    required this.vaultResponse,
   });
+
+  @override
+  State<VaultPage> createState() => _VaultPageState();
+}
+
+class _VaultPageState extends State<VaultPage> {
+  final _encryptionService = EncryptionService();
+  final _authService = AuthService();
+
+  late Map<String, String> _vaultItems;
+  bool _isLoading = false;
+  String _statusMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _decryptVault();
+  }
+
+  void _decryptVault() {
+    try {
+      final encryptedData = widget.vaultResponse['data'] as String? ?? '';
+      if (encryptedData.isEmpty) {
+        _vaultItems = {};
+      } else {
+        _vaultItems = _encryptionService.decryptVault(
+          encryptedData,
+          widget.password,
+          widget.salt,
+        );
+      }
+    } catch (e) {
+      _vaultItems = {};
+      _showError('Failed to decrypt vault: $e');
+    }
+  }
+
+  Future<void> _saveVault() async {
+    setState(() {
+      _isLoading = true;
+      _statusMessage = '';
+    });
+
+    try {
+      final encrypted = await _authService.encryptVault(
+        _vaultItems,
+        widget.password,
+      );
+
+      final success = await _authService.updateVault(widget.token, encrypted);
+
+      if (success) {
+        _showSuccess('Vault updated successfully');
+      } else {
+        _showError('Failed to update vault');
+      }
+    } catch (e) {
+      _showError('Error saving vault: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showError(String message) {
+    setState(() {
+      _statusMessage = message;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    setState(() {
+      _statusMessage = message;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _addItem() {
+    final titleController = TextEditingController();
+    final valueController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add New Item'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Title (e.g., Gmail, Facebook)',
+                border: OutlineInputBorder(),
+              ),
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: valueController,
+              decoration: const InputDecoration(
+                labelText: 'Password/Value',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (titleController.text.isNotEmpty &&
+                  valueController.text.isNotEmpty) {
+                setState(() {
+                  _vaultItems[titleController.text] = valueController.text;
+                });
+                Navigator.pop(context);
+                _saveVault();
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editItem(String key, String value) {
+    final valueController = TextEditingController(text: value);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit: $key'),
+        content: TextField(
+          controller: valueController,
+          decoration: const InputDecoration(
+            labelText: 'Password/Value',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (valueController.text.isNotEmpty) {
+                setState(() {
+                  _vaultItems[key] = valueController.text;
+                });
+                Navigator.pop(context);
+                _saveVault();
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteItem(String key) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Item'),
+        content: Text('Are you sure you want to delete "$key"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _vaultItems.remove(key);
+              });
+              Navigator.pop(context);
+              _saveVault();
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied to clipboard'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -220,76 +446,110 @@ class VaultPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Your Vault'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            },
+            tooltip: 'Logout',
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Vault Data:',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _vaultItems.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 80,
+                        color: Colors.grey.shade400,
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: SelectableText(
-                        vaultData.toString(),
-                        style: const TextStyle(fontFamily: 'monospace'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Token:',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: SelectableText(
-                        token,
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 12,
+                      const SizedBox(height: 16),
+                      Text(
+                        'Your vault is empty',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tap the + button to add your first item',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _vaultItems.length,
+                  itemBuilder: (context, index) {
+                    final key = _vaultItems.keys.elementAt(index);
+                    final value = _vaultItems[key]!;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                            key.substring(0, 1).toUpperCase(),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        title: Text(
+                          key,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '••••••••',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 18,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 20),
+                              onPressed: () => _copyToClipboard(value),
+                              tooltip: 'Copy password',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20),
+                              onPressed: () => _editItem(key, value),
+                              tooltip: 'Edit',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 20),
+                              color: Colors.red,
+                              onPressed: () => _deleteItem(key),
+                              tooltip: 'Delete',
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ),
-          ],
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addItem,
+        tooltip: 'Add new item',
+        child: const Icon(Icons.add),
       ),
     );
   }

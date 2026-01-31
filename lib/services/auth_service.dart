@@ -3,145 +3,177 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:argon2/argon2.dart';
+import 'package:cryptography/cryptography.dart';
 
 class AuthService {
-  static const String baseUrl = 'https://diaphragmatically-scimitared-oda.ngrok-free.dev';
+  static const String baseUrl =
+      'https://diaphragmatically-scimitared-oda.ngrok-free.dev';
 
-  /// Derives a key from password and salt using Argon2id
-Future<Uint8List> _derive(String password, Uint8List salt) async {
-  final argon2 = Argon2BytesGenerator();
+  /* =========================
+     AUTH KEY DERIVATION
+     ========================= */
 
-  final params = Argon2Parameters(
-    Argon2Parameters.ARGON2_id,
-    salt,
-    version: Argon2Parameters.ARGON2_VERSION_13,
-    iterations: 3,
-    memoryPowerOf2: 17, // 2^17 KB = 128 MB
-    lanes: 4,
-  );
+  Future<Uint8List> _derive(String password, Uint8List salt) async {
+    final argon2 = Argon2BytesGenerator();
 
-  argon2.init(params);
+    final params = Argon2Parameters(
+      Argon2Parameters.ARGON2_id,
+      salt,
+      version: Argon2Parameters.ARGON2_VERSION_13,
+      iterations: 3,
+      memoryPowerOf2: 17, // 128 MB
+      lanes: 4,
+    );
 
-  final passwordBytes = Uint8List.fromList(utf8.encode(password));
-  final hash = Uint8List(32);
+    argon2.init(params);
 
-  argon2.generateBytes(passwordBytes, hash);
+    final passwordBytes = Uint8List.fromList(utf8.encode(password));
+    final hash = Uint8List(32);
+    argon2.generateBytes(passwordBytes, hash);
 
-  return hash;
-}
+    return hash;
+  }
 
+  /* =========================
+     VAULT ENCRYPTION
+     ========================= */
 
-  /// Get authentication salt for a user, returns null if user doesn't exist
+  Future<Map<String, String>> encryptVault(
+    Map<String, dynamic> vault,
+    String password,
+  ) async {
+    // Generate salt (matches Python)
+    final vaultSalt = _randomBytes(16);
+
+    // Derive vault key
+    final keyBytes = await _derive(password, vaultSalt);
+    final secretKey = SecretKey(keyBytes);
+
+    // Generate XChaCha20 nonce (24 bytes)
+    final nonce = _randomBytes(24);
+
+    // Encrypt
+    final algorithm = Xchacha20.poly1305Aead();
+    final plaintext = utf8.encode(jsonEncode(vault));
+
+    final secretBox = await algorithm.encrypt(
+      plaintext,
+      secretKey: secretKey,
+      nonce: nonce,
+    );
+
+    // Python concatenates MAC to ciphertext
+    final combinedCiphertext =
+        secretBox.cipherText + secretBox.mac.bytes;
+
+    return {
+      'vault_salt': _bytesToHex(vaultSalt),
+      'nonce': _bytesToHex(nonce),
+      'ciphertext': _bytesToHex(Uint8List.fromList(combinedCiphertext)),
+    };
+  }
+
+  /* =========================
+     API CALLS
+     ========================= */
+
   Future<Uint8List?> getAuthSalt(String username) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth_salt/$username'),
-      );
+    final response =
+        await http.get(Uri.parse('$baseUrl/auth_salt/$username'));
 
-      if (response.statusCode == 404) {
-        return null; // User doesn't exist
-      }
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final saltHex = data['salt'] as String;
-        return _hexToBytes(saltHex);
-      }
-
-      throw Exception('Failed to get auth salt: ${response.statusCode}');
-    } catch (e) {
-      throw Exception('Error getting auth salt: $e');
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get auth salt');
     }
+
+    final data = json.decode(response.body);
+    return _hexToBytes(data['salt']);
   }
 
-  /// Register a new user
   Future<void> register(String username, String password) async {
-    try {
-      // Generate random salt
-      final random = Random.secure();
-      final salt = Uint8List.fromList(
-        List<int>.generate(16, (i) => random.nextInt(256)),
-      );
+    final salt = _randomBytes(16);
+    final verifier = await _derive(password, salt);
 
-      // Derive verifier
-      final verifier = await _derive(password, salt);
+    final response = await http.post(
+      Uri.parse('$baseUrl/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'salt': _bytesToHex(salt),
+        'verifier': _bytesToHex(verifier),
+      }),
+    );
 
-      // Send registration request
-      final response = await http.post(
-        Uri.parse('$baseUrl/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'username': username,
-          'salt': _bytesToHex(salt),
-          'verifier': _bytesToHex(verifier),
-        }),
-      );
-
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        throw Exception('Registration failed: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error during registration: $e');
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Registration failed');
     }
   }
 
-  /// Login with username and password
   Future<String?> login(String username, String password) async {
-    try {
-      // Get salt
-      final salt = await getAuthSalt(username);
-      if (salt == null) {
-        throw Exception('User not found');
-      }
+    final salt = await getAuthSalt(username);
+    if (salt == null) return null;
 
-      // Derive verifier
-      final verifier = await _derive(password, salt);
+    final verifier = await _derive(password, salt);
 
-      // Send login request
-      final response = await http.post(
-        Uri.parse('$baseUrl/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'username': username,
-          'verifier': _bytesToHex(verifier),
-        }),
-      );
+    final response = await http.post(
+      Uri.parse('$baseUrl/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'verifier': _bytesToHex(verifier),
+      }),
+    );
 
-      if (response.statusCode != 200) {
-        return null; // Login failed
-      }
+    if (response.statusCode != 200) return null;
 
-      final data = json.decode(response.body);
-      return data['token'] as String;
-    } catch (e) {
-      throw Exception('Error during login: $e');
-    }
+    return json.decode(response.body)['token'];
   }
 
-  /// Fetch vault data
   Future<Map<String, dynamic>> getVault(String token) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/vault'),
-        headers: {'Authorization': token},
-      );
+    final response = await http.get(
+      Uri.parse('$baseUrl/vault'),
+      headers: {'Authorization': token},
+    );
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      }
-
-      throw Exception('Failed to fetch vault: ${response.statusCode}');
-    } catch (e) {
-      throw Exception('Error fetching vault: $e');
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch vault');
     }
+
+    return json.decode(response.body);
   }
 
-  /// Convert bytes to hex string
-  String _bytesToHex(Uint8List bytes) {
-    return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  Future<bool> updateVault(
+    String token,
+    Map<String, String> encryptedBlob,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/vault'),
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'blob': encryptedBlob,
+      }),
+    );
+
+    return response.statusCode == 200;
   }
 
-  /// Convert hex string to bytes
+  /* =========================
+     HELPERS
+     ========================= */
+
+  Uint8List _randomBytes(int length) {
+    final rnd = Random.secure();
+    return Uint8List.fromList(
+      List.generate(length, (_) => rnd.nextInt(256)),
+    );
+  }
+
+  String _bytesToHex(Uint8List bytes) =>
+      bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+
   Uint8List _hexToBytes(String hex) {
     final result = Uint8List(hex.length ~/ 2);
     for (var i = 0; i < result.length; i++) {
