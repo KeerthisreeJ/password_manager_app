@@ -55,10 +55,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/* =========================
-   START PAGE
-   ========================= */
-
 class StartPage extends StatelessWidget {
   const StartPage({super.key});
 
@@ -66,78 +62,58 @@ class StartPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Password Manager'), // or Register / Set Password
+        automaticallyImplyLeading: true, // enables back arrow
       ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
-                Icons.lock_outline,
-                size: 96,
-                color: Colors.blue,
+              const AppHeroTitle(
+                title: 'SE 12',
+                subtitle: 'Your secrets. Locked. Local. Yours.',
+                icon: Icons.lock_rounded,
               ),
-              const SizedBox(height: 24),
-              Text(
-                'Welcome',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Securely access your vault',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 40),
-
-              // LOGIN BUTTON
-              ElevatedButton.icon(
-                icon: const Icon(Icons.login),
-                label: const Text(
-                  'Login',
-                  style: TextStyle(fontSize: 18),
-                ),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                ),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+              const SizedBox(height: 48),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.login),
+                  label: const Text('Login', style: TextStyle(fontSize: 18)),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
-                  elevation: 4,
                 ),
               ),
-
               const SizedBox(height: 16),
-
-              // REGISTER BUTTON
-              OutlinedButton.icon(
-                icon: const Icon(Icons.person_add),
-                label: const Text(
-                  'Create Account',
-                  style: TextStyle(fontSize: 16),
-                ),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const RegisterUsernamePage(),
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: 1.5,
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Create Account'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const RegisterUsernamePage(),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),
@@ -213,13 +189,23 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Login'), // or Register / Set Password
+        automaticallyImplyLeading: true, // enables back arrow
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.06,
+            ),
+            const AppHeroTitle(
+              title: 'Welcome Back',
+              subtitle: 'Unlock your vault',
+              icon: Icons.key_rounded,
+            ),
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.06,
+            ),
             TextField(
               controller: _usernameController,
               decoration: const InputDecoration(labelText: 'Username'),
@@ -230,7 +216,9 @@ class _LoginPageState extends State<LoginPage> {
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Password'),
             ),
-            const SizedBox(height: 24),
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.03,
+            ),
             ElevatedButton(
               onPressed: _loading ? null : _login,
               child: const Text('Login'),
@@ -298,8 +286,7 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Register'), // or Register / Set Password
+        automaticallyImplyLeading: true, // enables back arrow
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -387,13 +374,23 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Set Password'), // or Register / Set Password
+        automaticallyImplyLeading: true, // enables back arrow
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.06,
+            ),
+            const AppHeroTitle(
+              title: 'Set a Strong Password',
+              subtitle: 'This protects everything',
+              icon: Icons.shield_rounded,
+            ),
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.06,
+            ),
             Text('Username: ${widget.username}'),
             const SizedBox(height: 12),
             TextField(
@@ -417,9 +414,60 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
   }
 }
 
-/* =========================
-   VAULT PAGE (FULL UI)
-   ========================= */
+class AppHeroTitle extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  const AppHeroTitle({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: primary, // solid blue
+            
+          ),
+          child: Icon(
+            icon,
+            size: 42,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+              ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade400,
+                letterSpacing: 0.4,
+              ),
+        ),
+      ],
+    );
+  }
+}
 
 class VaultPage extends StatefulWidget {
   final String token;
@@ -486,6 +534,9 @@ class _VaultPageState extends State<VaultPage> {
             TextField(
               controller: keyCtrl,
               decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.01,
             ),
             TextField(
               controller: valCtrl,
@@ -562,12 +613,17 @@ class _VaultPageState extends State<VaultPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Your Vault'),
+        automaticallyImplyLeading: true,
+        title: const Text(
+          'Your Vault',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
