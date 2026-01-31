@@ -17,9 +17,38 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Password Manager',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.dark,
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF0F1115),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0F1115),
+          elevation: 0,
+          centerTitle: true,
+          titleTextStyle: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF1A1D24),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Colors.blue),
+          ),
+          labelStyle: const TextStyle(color: Colors.grey),
+        ),
       ),
       home: const StartPage(),
     );
@@ -36,27 +65,84 @@ class StartPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Password Manager')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Password Manager'), // or Register / Set Password
+      ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(
+                Icons.lock_outline,
+                size: 96,
+                color: Colors.blue,
               ),
-              child: const Text('Login'),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RegisterUsernamePage()),
+              const SizedBox(height: 24),
+              Text(
+                'Welcome',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
-              child: const Text('Register'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Securely access your vault',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 40),
+
+              // LOGIN BUTTON
+              ElevatedButton.icon(
+                icon: const Icon(Icons.login),
+                label: const Text(
+                  'Login',
+                  style: TextStyle(fontSize: 18),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 4,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // REGISTER BUTTON
+              OutlinedButton.icon(
+                icon: const Icon(Icons.person_add),
+                label: const Text(
+                  'Create Account',
+                  style: TextStyle(fontSize: 16),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RegisterUsernamePage(),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -126,7 +212,10 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Login'), // or Register / Set Password
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -208,7 +297,10 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Register'), // or Register / Set Password
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -294,7 +386,10 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Set Password')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Set Password'), // or Register / Set Password
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -467,10 +562,12 @@ class _VaultPageState extends State<VaultPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Your Vault'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
