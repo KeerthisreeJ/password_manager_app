@@ -155,7 +155,6 @@ class AuthService {
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch vault');
     }
-    print('rbody: ' + response.body);
     return json.decode(response.body);
   }
 
