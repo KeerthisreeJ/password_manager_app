@@ -900,6 +900,21 @@ class _VaultPageState extends State<VaultPage> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.security),
+            tooltip: 'Security & MFA Settings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MfaSettingsPage(
+                    username: widget.username,
+                    token: widget.token,
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.info_outline),
             tooltip: 'Security Documentation',
             onPressed: () {
