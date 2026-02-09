@@ -6,8 +6,7 @@ import 'package:argon2/argon2.dart';
 import 'package:cryptography/cryptography.dart';
 
 class AuthService {
-  static const String baseUrl =
-      'http://127.0.0.1:8000';
+  static const String baseUrl = 'http://127.0.0.1:8000';
 
   Future<Uint8List> _derive(String password, Uint8List salt) async {
     final argon2 = Argon2BytesGenerator();
@@ -171,6 +170,80 @@ class AuthService {
       body: jsonEncode({
         'blob': encryptedBlob,
       }),
+    );
+
+    return response.statusCode == 200;
+  }
+
+  // MFA Methods
+  Future<bool> checkMfaStatus(String username) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/mfa/status/$username'),
+    );
+
+    if (response.statusCode != 200) {
+      return false;
+    }
+
+    final data = json.decode(response.body);
+    return data['mfa_enabled'] ?? false;
+  }
+
+  Future<Map<String, dynamic>> setupMfa(String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/mfa/setup'),
+      headers: {'Authorization': token},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to setup MFA');
+    }
+
+    return json.decode(response.body);
+  }
+
+  Future<bool> verifyMfa(String username, String code) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/mfa/verify'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'code': code,
+      }),
+    );
+
+    return response.statusCode == 200;
+  }
+
+  Future<String?> loginWithMfa(
+    String username,
+    String password,
+    String mfaCode,
+  ) async {
+    final salt = await getAuthSalt(username);
+    if (salt == null) return null;
+
+    final verifier = await _derive(password, salt);
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/login/mfa'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'verifier': _bytesToHex(verifier),
+        'mfa_code': mfaCode,
+      }),
+    );
+
+    if (response.statusCode != 200) return null;
+
+    return json.decode(response.body)['token'];
+  }
+
+  Future<bool> disableMfa(String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/mfa/disable'),
+      headers: {'Authorization': token},
     );
 
     return response.statusCode == 200;
