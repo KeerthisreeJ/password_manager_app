@@ -167,26 +167,47 @@ class _LoginPageState extends State<LoginPage> {
 
       final salt = await _authService.getAuthSalt(username);
       // UI ENHANCEMENT: Clear, helpful error message instead of technical exception
-      if (salt == null) throw Exception('User not found. Please check your username.');
+      if (salt == null)
+        throw Exception('User not found. Please check your username.');
 
-      final token = await _authService.login(username, password);
-      // UI ENHANCEMENT: User-friendly password error message
-      if (token == null) throw Exception('Incorrect password. Please try again.');
-
-      final vault = await _authService.getVault(token);
+      // Check if MFA is enabled
+      final mfaEnabled = await _authService.checkMfaStatus(username);
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => VaultPage(
-            token: token,
-            password: password,
-            vaultResponse: vault,
+      if (mfaEnabled) {
+        // Redirect to MFA verification page
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MfaVerifyPage(
+              username: username,
+              password: password,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // Normal login without MFA
+        final token = await _authService.login(username, password);
+        if (token == null)
+          throw Exception('Incorrect password. Please try again.');
+
+        final vault = await _authService.getVault(token);
+
+        if (!mounted) return;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VaultPage(
+              username: username,
+              token: token,
+              password: password,
+              vaultResponse: vault,
+            ),
+          ),
+        );
+      }
     } catch (e) {
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
@@ -261,7 +282,8 @@ class _LoginPageState extends State<LoginPage> {
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : const Text('Login'),
@@ -279,7 +301,8 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                    const Icon(Icons.error_outline,
+                        color: Colors.red, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -324,13 +347,14 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
 
     try {
       final username = _usernameController.text.trim().toLowerCase();
-      
+
       if (username.isEmpty) {
         throw Exception('Please enter a username');
       }
-      
+
       final salt = await _authService.getAuthSalt(username);
-      if (salt != null) throw Exception('Username already taken. Please choose another.');
+      if (salt != null)
+        throw Exception('Username already taken. Please choose another.');
 
       if (!mounted) return;
 
@@ -372,7 +396,8 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
               label: 'Username input field',
               child: TextField(
                 controller: _usernameController,
-                decoration: const InputDecoration(labelText: 'Choose a username'),
+                decoration:
+                    const InputDecoration(labelText: 'Choose a username'),
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _loading ? null : _next(),
                 enabled: !_loading,
@@ -389,7 +414,8 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : const Text('Next'),
@@ -406,7 +432,8 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                    const Icon(Icons.error_outline,
+                        color: Colors.red, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -453,18 +480,20 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
 
     try {
       final password = _passwordController.text;
-      
+
       if (password.isEmpty) {
         throw Exception('Please enter a password');
       }
-      
+
       if (password.length < 8) {
         throw Exception('Password must be at least 8 characters long');
       }
 
       await _authService.register(widget.username, password);
       final token = await _authService.login(widget.username, password);
-      if (token == null) throw Exception('Registration succeeded but login failed. Please try logging in.');
+      if (token == null)
+        throw Exception(
+            'Registration succeeded but login failed. Please try logging in.');
 
       final vault = await _authService.getVault(token);
 
@@ -474,6 +503,7 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
         context,
         MaterialPageRoute(
           builder: (_) => VaultPage(
+            username: widget.username,
             token: token,
             password: password,
             vaultResponse: vault,
@@ -544,7 +574,8 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : const Text('Register'),
@@ -561,7 +592,8 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                    const Icon(Icons.error_outline,
+                        color: Colors.red, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -635,12 +667,14 @@ class AppHeroTitle extends StatelessWidget {
 }
 
 class VaultPage extends StatefulWidget {
+  final String username;
   final String token;
   final String password;
   final Map<String, dynamic> vaultResponse;
 
   const VaultPage({
     super.key,
+    required this.username,
     required this.token,
     required this.password,
     required this.vaultResponse,
@@ -865,48 +899,19 @@ class _VaultPageState extends State<VaultPage> {
           ),
         ),
         actions: [
-          // UI ENHANCEMENT: Settings button for accessibility controls
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
+            icon: const Icon(Icons.security),
+            tooltip: 'Security & MFA Settings',
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.backup),
-            tooltip: 'Manage Backups',
-            onPressed: () async {
-              final restored = await showDialog<bool>(
-                context: context,
-                builder: (context) => BackupManagerDialog(
-                  token: widget.token,
-                  authService: _authService,
+                MaterialPageRoute(
+                  builder: (_) => MfaSettingsPage(
+                    username: widget.username,
+                    token: widget.token,
+                  ),
                 ),
               );
-              
-              // If a backup was restored, reload vault data
-              if (restored == true && mounted) {
-                final freshVault = await _authService.getVault(widget.token);
-                final blob = freshVault['blob'];
-                if (blob != null) {
-                  final decrypted = await _authService.decryptVault(
-                    Map<String, dynamic>.from(blob),
-                    widget.password,
-                  );
-                  setState(() {
-                    _vaultItems = Map<String, Map<String, String>>.from(
-                      decrypted.map((k, v) => MapEntry(
-                            k,
-                            Map<String, String>.from(v),
-                          )),
-                    );
-                  });
-                }
-              }
             },
           ),
           IconButton(
@@ -966,6 +971,513 @@ class _VaultPageState extends State<VaultPage> {
       floatingActionButton: FloatingActionButton(
         onPressed: _addItem,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+/* =========================
+   MFA VERIFY PAGE (FOR LOGIN)
+   ========================= */
+
+class MfaVerifyPage extends StatefulWidget {
+  final String username;
+  final String password;
+
+  const MfaVerifyPage({
+    super.key,
+    required this.username,
+    required this.password,
+  });
+
+  @override
+  State<MfaVerifyPage> createState() => _MfaVerifyPageState();
+}
+
+class _MfaVerifyPageState extends State<MfaVerifyPage> {
+  final _authService = AuthService();
+  final _codeController = TextEditingController();
+  bool _loading = false;
+  String _error = '';
+
+  Future<void> _verify() async {
+    if (_codeController.text.length != 6) {
+      setState(() => _error = 'Please enter a 6-digit code');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+
+    try {
+      final token = await _authService.loginWithMfa(
+        widget.username,
+        widget.password,
+        _codeController.text,
+      );
+
+      if (token == null) throw Exception('Invalid MFA code');
+
+      final vault = await _authService.getVault(token);
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VaultPage(
+            username: widget.username,
+            token: token,
+            password: widget.password,
+            vaultResponse: vault,
+          ),
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Enter MFA Code')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const SizedBox(height: 40),
+            const AppHeroTitle(
+              title: 'Two-Factor Authentication',
+              subtitle: 'Enter code from your authenticator app',
+              icon: Icons.shield_rounded,
+            ),
+            const SizedBox(height: 40),
+            TextField(
+              controller: _codeController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, letterSpacing: 8),
+              decoration: const InputDecoration(
+                labelText: '6-Digit Code',
+                counterText: '',
+              ),
+              onSubmitted: (_) => _verify(),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _verify,
+                child: _loading
+                    ? const CircularProgressIndicator()
+                    : const Text('Verify'),
+              ),
+            ),
+            if (_error.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(_error, style: const TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* =========================
+   MFA SETTINGS PAGE
+   ========================= */
+
+class MfaSettingsPage extends StatefulWidget {
+  final String username;
+  final String token;
+
+  const MfaSettingsPage({
+    super.key,
+    required this.username,
+    required this.token,
+  });
+
+  @override
+  State<MfaSettingsPage> createState() => _MfaSettingsPageState();
+}
+
+class _MfaSettingsPageState extends State<MfaSettingsPage> {
+  final _authService = AuthService();
+  bool _loading = true;
+  bool _mfaEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus();
+  }
+
+  Future<void> _checkStatus() async {
+    // This is a workaround - we'd need to pass username or store it
+    // For now, just show the setup option
+    setState(() => _loading = false);
+  }
+
+  Future<void> _setupMfa() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MfaSetupPage(
+          username: widget.username,
+          token: widget.token,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _disableMfa() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Disable MFA'),
+        content: const Text(
+          'Are you sure you want to disable two-factor authentication? '
+          'This will make your account less secure.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Disable'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _loading = true);
+
+    try {
+      final success = await _authService.disableMfa(widget.token);
+      if (!success) throw Exception('Failed to disable MFA');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('MFA disabled successfully')),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('MFA Settings')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.security, color: Colors.blue),
+                    title: const Text('Setup Two-Factor Authentication'),
+                    subtitle: const Text(
+                      'Add an extra layer of security to your account',
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: _setupMfa,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('About MFA'),
+                    subtitle: const Text(
+                      'Use apps like Google Authenticator, Authy, '
+                      'or Microsoft Authenticator',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+/* =========================
+   MFA SETUP PAGE
+   ========================= */
+
+class MfaSetupPage extends StatefulWidget {
+  final String username;
+  final String token;
+
+  const MfaSetupPage({
+    super.key,
+    required this.username,
+    required this.token,
+  });
+
+  @override
+  State<MfaSetupPage> createState() => _MfaSetupPageState();
+}
+
+class _MfaSetupPageState extends State<MfaSetupPage> {
+  final _authService = AuthService();
+  final _codeController = TextEditingController();
+
+  bool _loading = true;
+  bool _verifying = false;
+  String? _qrCode;
+  String? _secret;
+  List<String>? _backupCodes;
+  String _error = '';
+  String _username = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _setup();
+  }
+
+  Future<void> _setup() async {
+    try {
+      final data = await _authService.setupMfa(widget.token);
+
+      setState(() {
+        _qrCode = data['qr_code'];
+        _secret = data['secret'];
+        _backupCodes = List<String>.from(data['backup_codes'] ?? []);
+        _username = ''; // Would need to be passed or stored
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _verify() async {
+    if (_codeController.text.length != 6) {
+      setState(() => _error = 'Please enter a 6-digit code');
+      return;
+    }
+
+    setState(() {
+      _verifying = true;
+      _error = '';
+    });
+
+    try {
+      // Actually verify the code with the server
+      final success = await _authService.verifyMfa(
+        widget.username,
+        _codeController.text,
+      );
+
+      if (!success) {
+        throw Exception('Invalid code. Please try again.');
+      }
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('MFA Enabled!'),
+          content: const Text(
+            'Two-factor authentication has been enabled successfully. '
+            'Make sure you\'ve saved your backup codes!',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Close setup page
+                Navigator.pop(context); // Close settings page
+              },
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      setState(() => _verifying = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Setup MFA')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error.isNotEmpty && _qrCode == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Setup MFA')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(_error, style: const TextStyle(color: Colors.red)),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Setup MFA')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Step 1: Scan QR Code',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Open your authenticator app and scan this QR code:',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            if (_qrCode != null)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Image.memory(
+                    Uri.parse(_qrCode!).data!.contentAsBytes(),
+                    width: 250,
+                    height: 250,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 24),
+            if (_secret != null) ...[
+              const Text(
+                'Or enter this key manually:',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1D24),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  _secret!,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 32),
+            const Text(
+              'Step 2: Save Backup Codes',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Save these codes in a secure place. You can use them to access your account if you lose your device.',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            if (_backupCodes != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1D24),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: Column(
+                  children: _backupCodes!.map((code) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        code,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 16,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            const SizedBox(height: 32),
+            const Text(
+              'Step 3: Verify Code',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Enter the 6-digit code from your authenticator app:',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _codeController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, letterSpacing: 8),
+              decoration: const InputDecoration(
+                labelText: '6-Digit Code',
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _verifying ? null : _verify,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: _verifying
+                  ? const CircularProgressIndicator()
+                  : const Text('Verify and Enable MFA'),
+            ),
+            if (_error.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(_error, style: const TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
       ),
     );
   }
