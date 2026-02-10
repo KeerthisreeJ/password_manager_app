@@ -1133,6 +1133,17 @@ class _VaultPageState extends State<VaultPage> {
           ),
         ),
         actions: [
+          // UI ENHANCEMENT: Settings button for accessibility controls
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.security),
             tooltip: 'Security & MFA Settings',
