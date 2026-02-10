@@ -14,7 +14,12 @@ import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
 import 'dart:async';
 
+import 'dart:io';
+
 void main() {
+  // DEV ONLY: Trust self-signed certificates for local development
+  HttpOverrides.global = DevHttpOverrides();
+
   // UI ENHANCEMENT: Wrap app with ChangeNotifierProvider for settings state management
   runApp(
     ChangeNotifierProvider(
@@ -22,6 +27,15 @@ void main() {
       child: const MyApp(),
     ),
   );
+}
+
+// Development-only override to accept self-signed certificates
+class DevHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
 }
 
 /* =========================

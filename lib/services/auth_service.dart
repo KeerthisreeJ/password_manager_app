@@ -6,7 +6,7 @@ import 'package:argon2/argon2.dart';
 import 'package:cryptography/cryptography.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://127.0.0.1:8000';
+  static const String baseUrl = 'https://127.0.0.1:8000';
 
   Future<Uint8List> _derive(String password, Uint8List salt) async {
     final argon2 = Argon2BytesGenerator();
@@ -237,7 +237,6 @@ class AuthService {
   }
 
   // Backup Methods
-
   Future<List<BackupFile>> getBackups(String token) async {
     final response = await http.get(
       Uri.parse('$baseUrl/backups'),
