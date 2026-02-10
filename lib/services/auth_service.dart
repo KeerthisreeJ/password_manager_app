@@ -86,10 +86,7 @@ class AuthService {
       mac: Mac(macBytes),
     );
 
-    final plaintext = await algorithm.decrypt(
-      secretBox,
-      secretKey: secretKey,
-    );
+    final plaintext = await algorithm.decrypt(secretBox, secretKey: secretKey);
 
     return jsonDecode(utf8.decode(plaintext));
   }
@@ -163,13 +160,8 @@ class AuthService {
   ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/vault'),
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'blob': encryptedBlob,
-      }),
+      headers: {'Authorization': token, 'Content-Type': 'application/json'},
+      body: jsonEncode({'blob': encryptedBlob}),
     );
 
     return response.statusCode == 200;
@@ -177,9 +169,7 @@ class AuthService {
 
   // MFA Methods
   Future<bool> checkMfaStatus(String username) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/mfa/status/$username'),
-    );
+    final response = await http.get(Uri.parse('$baseUrl/mfa/status/$username'));
 
     if (response.statusCode != 200) {
       return false;
@@ -206,10 +196,7 @@ class AuthService {
     final response = await http.post(
       Uri.parse('$baseUrl/mfa/verify'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'username': username,
-        'code': code,
-      }),
+      body: jsonEncode({'username': username, 'code': code}),
     );
 
     return response.statusCode == 200;
@@ -281,10 +268,7 @@ class AuthService {
   Future<void> restoreBackup(String token, String filename) async {
     final response = await http.post(
       Uri.parse('$baseUrl/backups/restore'),
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json',
-      },
+      headers: {'Authorization': token, 'Content-Type': 'application/json'},
       body: jsonEncode({'filename': filename}),
     );
 
@@ -297,9 +281,7 @@ class AuthService {
 
   Uint8List _randomBytes(int length) {
     final rnd = Random.secure();
-    return Uint8List.fromList(
-      List.generate(length, (_) => rnd.nextInt(256)),
-    );
+    return Uint8List.fromList(List.generate(length, (_) => rnd.nextInt(256)));
   }
 
   String _bytesToHex(Uint8List bytes) =>

@@ -770,6 +770,17 @@ class _VaultPageState extends State<VaultPage> {
     setState(() => _loading = false);
   }
 
+  bool _isStrongPassword(String pass) {
+    if (pass.length < 8) return false;
+
+    final hasUpper = pass.contains(RegExp(r'[A-Z]'));
+    final hasLower = pass.contains(RegExp(r'[a-z]'));
+    final hasNumber = pass.contains(RegExp(r'[0-9]'));
+    final hasSpecial = pass.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+
+    return hasUpper && hasLower && hasNumber && hasSpecial;
+  }
+
   void _addItem() {
     final keyCtrl = TextEditingController();
     final valCtrl = TextEditingController();
@@ -799,9 +810,34 @@ class _VaultPageState extends State<VaultPage> {
           ),
           ElevatedButton(
             onPressed: () {
+              final title = keyCtrl.text.trim();
+              final pass = valCtrl.text.trim();
+
+              if (title.isEmpty || pass.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Title and Password cannot be empty')),
+                );
+                return;
+              }
+
+              if (_vaultItems.containsKey(title)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Title already exists')),
+                );
+                return;
+              }
+
+              if (!_isStrongPassword(pass)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter strong password')),
+                );
+                return;
+              }
+
               setState(() {
-                _vaultItems[keyCtrl.text] = {
-                  "password": valCtrl.text,
+                _vaultItems[title] = {
+                  "password": pass,
                   "updatedAt": _now(),
                 };
               });
@@ -834,9 +870,25 @@ class _VaultPageState extends State<VaultPage> {
           ),
           ElevatedButton(
             onPressed: () {
+              final newPass = valCtrl.text.trim();
+
+              if (newPass.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Password cannot be empty')),
+                );
+                return;
+              }
+
+              if (!_isStrongPassword(newPass)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter strong password')),
+                );
+                return;
+              }
+
               setState(() {
                 _vaultItems[key] = {
-                  "password": valCtrl.text,
+                  "password": newPass,
                   "updatedAt": _now(),
                 };
               });
