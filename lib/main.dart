@@ -61,6 +61,21 @@ class MyApp extends StatelessWidget {
   }
 }
 
+/* UI ENHANCEMENT: Start Page (Landing Page)
+ * 
+ * Purpose:
+ * - App entry point for unauthenticated users
+ * - Provides navigation to login or registration
+ * - Displays app branding and tagline
+ * 
+ * Features:
+ * - Theme toggle button for immediate accessibility
+ * - Full-width buttons for easy touch targets
+ * - Icon-enhanced buttons for visual clarity
+ * - Responsive spacing based on screen height
+ * - Consistent styling with rounded corners
+ */
+
 class StartPage extends StatelessWidget {
   const StartPage({super.key});
 
@@ -69,6 +84,20 @@ class StartPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true, // enables back arrow
+        // UI ENHANCEMENT: Theme toggle button for accessibility
+        actions: [
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return IconButton(
+                icon: Icon(
+                  settings.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                ),
+                onPressed: () => settings.toggleTheme(),
+                tooltip: settings.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode',
+              );
+            },
+          ),
+        ],
       ),
       body: Center(
         child: Padding(
@@ -76,12 +105,14 @@ class StartPage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // App branding with icon and tagline
               const AppHeroTitle(
                 title: 'SE 12',
                 subtitle: 'Your secrets. Locked. Local. Yours.',
                 icon: Icons.lock_rounded,
               ),
               const SizedBox(height: 48),
+              // Login button - primary action
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -102,6 +133,7 @@ class StartPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              // Register button - secondary action
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -135,6 +167,31 @@ class StartPage extends StatelessWidget {
    LOGIN PAGE
    ========================= */
 
+/* UI ENHANCEMENT: Login Page
+ * 
+ * Purpose:
+ * - Authenticates existing users with username/password
+ * - Provides clear, user-friendly error messages
+ * - Shows loading states during authentication
+ * - Supports keyboard navigation (Tab/Enter)
+ * 
+ * Features:
+ * - Theme toggle button in AppBar for accessibility
+ * - Client-side validation before API calls
+ * - Semantic labels for screen readers
+ * - Disabled inputs during loading to prevent double-submission
+ * - Styled error messages with icons for better visibility
+ * 
+ * Flow:
+ * 1. User enters username (converted to lowercase, trimmed)
+ * 2. User enters password (obscured text)
+ * 3. Validation checks for empty fields
+ * 4. Fetch auth salt to verify user exists
+ * 5. Attempt login with credentials
+ * 6. On success: Navigate to vault page
+ * 7. On error: Display user-friendly error message
+ */
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -150,6 +207,8 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
   String _error = '';
 
+  /// Handles login authentication flow
+  /// Validates inputs, calls auth service, and navigates on success
   Future<void> _login() async {
     setState(() {
       _loading = true;
@@ -224,6 +283,20 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
+        // UI ENHANCEMENT: Theme toggle button for accessibility
+        actions: [
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return IconButton(
+                icon: Icon(
+                  settings.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                ),
+                onPressed: () => settings.toggleTheme(),
+                tooltip: settings.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode',
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -325,6 +398,28 @@ class _LoginPageState extends State<LoginPage> {
    REGISTER – STEP 1
    ========================= */
 
+/* UI ENHANCEMENT: Registration Step 1 - Username Selection
+ * 
+ * Purpose:
+ * - First step of two-step registration process
+ * - Validates username availability before proceeding
+ * - Prevents duplicate usernames
+ * 
+ * Features:
+ * - Theme toggle for accessibility
+ * - Real-time username availability check
+ * - Lowercase normalization for consistency
+ * - Clear error messages for taken usernames
+ * - Keyboard navigation support (Enter to proceed)
+ * 
+ * Flow:
+ * 1. User enters desired username
+ * 2. Username is trimmed and converted to lowercase
+ * 3. Check if username already exists via auth salt lookup
+ * 4. If available: Navigate to password step
+ * 5. If taken: Show error message
+ */
+
 class RegisterUsernamePage extends StatefulWidget {
   const RegisterUsernamePage({super.key});
 
@@ -339,6 +434,7 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
   bool _loading = false;
   String _error = '';
 
+  /// Validates username and proceeds to password step
   Future<void> _next() async {
     setState(() {
       _loading = true;
@@ -380,6 +476,20 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
+        // UI ENHANCEMENT: Theme toggle button
+        actions: [
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return IconButton(
+                icon: Icon(
+                  settings.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                ),
+                onPressed: () => settings.toggleTheme(),
+                tooltip: settings.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode',
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -456,6 +566,35 @@ class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
    REGISTER – STEP 2
    ========================= */
 
+/* UI ENHANCEMENT: Registration Step 2 - Password Creation
+ * 
+ * Purpose:
+ * - Second and final step of registration
+ * - Creates secure password for the account
+ * - Enforces minimum security requirements
+ * - Automatically logs in after successful registration
+ * 
+ * Features:
+ * - Theme toggle for accessibility
+ * - Password length validation (minimum 8 characters)
+ * - Obscured password input for security
+ * - Helper text showing requirements
+ * - Automatic login and vault navigation on success
+ * 
+ * Security:
+ * - Password is used for client-side encryption
+ * - Never stored in plain text
+ * - Used to derive encryption keys via PBKDF2
+ * 
+ * Flow:
+ * 1. Display selected username (from step 1)
+ * 2. User enters password (minimum 8 characters)
+ * 3. Validate password length
+ * 4. Register account with auth service
+ * 5. Automatically log in with new credentials
+ * 6. Navigate to vault page
+ */
+
 class RegisterPasswordPage extends StatefulWidget {
   final String username;
 
@@ -472,6 +611,7 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
   bool _loading = false;
   String _error = '';
 
+  /// Registers new account and automatically logs in
   Future<void> _register() async {
     setState(() {
       _loading = true;
@@ -526,6 +666,20 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
+        // UI ENHANCEMENT: Theme toggle button
+        actions: [
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return IconButton(
+                icon: Icon(
+                  settings.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                ),
+                onPressed: () => settings.toggleTheme(),
+                tooltip: settings.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode',
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
