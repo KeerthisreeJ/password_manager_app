@@ -19,10 +19,10 @@ on:
     branches: [ main ]
 
 # ── FLUTTER VERSION ───────────────────────────────────────────────────────────
-# Pinned to 3.24.3 — compatible with AGP 8.1.0 used in android/settings.gradle.kts
-# Latest Flutter (3.29+) requires AGP 9+ which needs a full Gradle migration
+# 3.27.4 supports CardThemeData/DialogThemeData (introduced in 3.27) + AGP 8.1.0
+# (Flutter 3.29+ requires AGP 9 — avoid until Gradle is migrated)
 env:
-  FLUTTER_VERSION: '3.24.3'
+  FLUTTER_VERSION: '3.27.4'
 
 # ── JOBS ─────────────────────────────────────────────────────────────────────
 jobs:
