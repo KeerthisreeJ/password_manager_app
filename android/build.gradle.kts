@@ -1,17 +1,8 @@
-buildscript {
-    // In Kotlin Script (.kts), use val instead of ext {} for variables
-    val kotlinVersion = "1.9.0"
-
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        classpath("com.android.tools.build:gradle:8.1.0")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
-    }
-}
+// Root build.gradle.kts — Cleaned up for Flutter new plugin-based project structure
+//
+// All plugin versions (AGP, Kotlin, Flutter) are declared in settings.gradle.kts
+// using the pluginManagement{} and plugins{} blocks. The old buildscript{} block
+// is NOT needed here and caused "Unresolved reference: ext/kotlin_version" errors.
 
 allprojects {
     repositories {
