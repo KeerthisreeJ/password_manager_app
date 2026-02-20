@@ -22,8 +22,10 @@ android {
         applicationId = "com.example.password_manager_app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutterVersionCode.toInt()
-        versionName = flutterVersionName
+        // flutter.versionCode / flutter.versionName read from pubspec.yaml (version: 1.0.0+1)
+        // The old global flutterVersionCode/flutterVersionName are deprecated in AGP 8+
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     buildTypes {
