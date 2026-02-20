@@ -71,11 +71,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Regenerate mockito mock files (auth_service_test.mocks.dart)
-      # These are generated from @GenerateMocks annotations — required before tests run
-      - name: Generate mocks (build_runner)
-        run: flutter pub run build_runner build --delete-conflicting-outputs
-
       # Run unit/service tests (no display needed)
       - name: Run unit tests
         run: flutter test test/services/ test/password_generator_test.dart test/backup_dialog_test.dart --reporter expanded
