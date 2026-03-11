@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:animate_do/animate_do.dart';
 import '../services/auth_service.dart';
 import '../services/log_service.dart';
+import '../services/local_auth_service.dart';
 import '../widgets/app_hero_title.dart';
 
 /// Locked Vault Page
@@ -36,6 +37,7 @@ class LockedVaultPage extends StatefulWidget {
 }
 
 class _LockedVaultPageState extends State<LockedVaultPage> {
+  final _localAuthService = LocalAuthService();
   final _authService = AuthService();
   final _logService = LogService();
   final _passwordController = TextEditingController();
@@ -45,11 +47,37 @@ class _LockedVaultPageState extends State<LockedVaultPage> {
   bool _requiresMfa = false;
   String _enteredPassword = '';
   String _error = '';
+  bool _hasCredentials = false;
+  Map<String, String>? _storedCredentials;
 
   @override
   void initState() {
     super.initState();
     _logService.setUsername(widget.username);
+    _checkCredentials();
+  }
+
+  Future<void> _checkCredentials() async {
+    final creds = await _localAuthService.getCredentials();
+    if (creds != null && creds['username'] == widget.username && mounted) {
+      setState(() {
+        _hasCredentials = true;
+        _storedCredentials = creds;
+      });
+    }
+  }
+
+  Future<void> _unlockWithPasskey() async {
+    if (_storedCredentials == null) return;
+
+    final authenticated = await _localAuthService.authenticate(
+      reason: 'Please authenticate to unlock your vault',
+    );
+
+    if (authenticated) {
+      _passwordController.text = _storedCredentials!['password']!;
+      await _unlock();
+    }
   }
 
   @override
@@ -280,6 +308,24 @@ class _LockedVaultPageState extends State<LockedVaultPage> {
                     ),
                   ),
                 ),
+                if (_hasCredentials) ...[
+                  const SizedBox(height: 12),
+                  FadeInUp(
+                    duration: const Duration(milliseconds: 500),
+                    delay: const Duration(milliseconds: 500),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.fingerprint_rounded),
+                        label: const Text('Unlock with Passkey'),
+                        onPressed: _loading ? null : _unlockWithPasskey,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 // Logout button
                 FadeInUp(

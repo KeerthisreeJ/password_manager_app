@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'services/auth_service.dart';
+import 'services/local_auth_service.dart';
 import 'services/log_service.dart';
 import 'services/inactivity_service.dart';
 import 'widgets/app_hero_title.dart';
@@ -246,7 +247,7 @@ class _StartPageState extends State<StartPage>
                                       onPressed: () => Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                            builder: (_) => const LoginPage()),
+                                            builder: (_) => const LoginUsernamePage()),
                                       ),
                                       style: ElevatedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
@@ -1039,23 +1040,252 @@ class _AnimatedButtonState extends State<_AnimatedButton>
  * 7. On error: Display user-friendly error message
  */
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class LoginUsernamePage extends StatefulWidget {
+  const LoginUsernamePage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<LoginUsernamePage> createState() => _LoginUsernamePageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginUsernamePageState extends State<LoginUsernamePage> {
   final _authService = AuthService();
   final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
 
   bool _loading = false;
   String _error = '';
 
-  /// Handles login authentication flow
-  /// Validates inputs, calls auth service, and navigates on success
+  Future<void> _next() async {
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+
+    try {
+      final username = _usernameController.text.trim().toLowerCase();
+
+      if (username.isEmpty) {
+        throw Exception('Please enter your username');
+      }
+
+      final salt = await _authService.getAuthSalt(username);
+      if (salt == null) {
+        throw Exception('User not found. Please check your username.');
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LoginPasswordPage(username: username),
+        ),
+      );
+    } catch (e) {
+      if (e is RateLimitException) {
+        if (!mounted) return;
+        _showSecurityAlert(e.message);
+      } else {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _showSecurityAlert(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.gpp_bad_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Security Alert'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: true,
+        actions: [
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return IconButton(
+                icon: Icon(
+                  settings.isDarkMode
+                      ? Icons.light_mode_rounded
+                      : Icons.dark_mode_rounded,
+                ),
+                onPressed: () => settings.toggleTheme(),
+                tooltip: settings.isDarkMode
+                    ? 'Switch to light mode'
+                    : 'Switch to dark mode',
+              );
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+        child: Column(
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.06),
+            const AppHeroTitle(
+              title: 'Welcome Back',
+              subtitle: 'Enter your username',
+              icon: Icons.person_rounded,
+            ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.06),
+            FadeInUp(
+              duration: const Duration(milliseconds: 500),
+              delay: const Duration(milliseconds: 200),
+              child: Semantics(
+                label: 'Username input field',
+                child: TextField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Username',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => _loading ? null : _next(),
+                  enabled: !_loading,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            FadeInUp(
+              duration: const Duration(milliseconds: 500),
+              delay: const Duration(milliseconds: 330),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _next,
+                  child: _loading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Next'),
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: _error.isNotEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: FadeIn(
+                        duration: const Duration(milliseconds: 300),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border:
+                                Border.all(color: Colors.red.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline_rounded,
+                                  color: Colors.red, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _error,
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* =========================
+   LOGIN – STEP 2
+   ========================= */
+
+class LoginPasswordPage extends StatefulWidget {
+  final String username;
+  const LoginPasswordPage({super.key, required this.username});
+
+  @override
+  State<LoginPasswordPage> createState() => _LoginPasswordPageState();
+}
+
+class _LoginPasswordPageState extends State<LoginPasswordPage> {
+  final _localAuthService = LocalAuthService();
+  final _authService = AuthService();
+  final _passwordController = TextEditingController();
+
+  bool _loading = false;
+  String _error = '';
+  bool _hasCredentials = false;
+  Map<String, String>? _storedCredentials;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCredentials();
+  }
+
+  Future<void> _checkCredentials() async {
+    final creds = await _localAuthService.getCredentials(widget.username);
+    if (creds != null && creds['username'] == widget.username && mounted) {
+      setState(() {
+        _hasCredentials = true;
+        _storedCredentials = creds;
+      });
+    }
+  }
+
+  Future<void> _loginWithPasskey() async {
+    if (_storedCredentials == null) return;
+    
+    final authenticated = await _localAuthService.authenticate(
+      reason: 'Please authenticate to log in with passkey',
+    );
+    
+    if (authenticated) {
+      _passwordController.text = _storedCredentials!['password']!;
+      await _login();
+    }
+  }
+
   void _showSecurityAlert(String message) {
     showDialog(
       context: context,
@@ -1086,58 +1316,48 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final username = _usernameController.text.trim().toLowerCase();
       final password = _passwordController.text;
 
-      // UI ENHANCEMENT: Validation with user-friendly error messages
-      if (username.isEmpty || password.isEmpty) {
-        throw Exception('Please enter both username and password');
+      if (password.isEmpty) {
+        throw Exception('Please enter your password');
       }
 
-      final salt = await _authService.getAuthSalt(username);
-      // UI ENHANCEMENT: Clear, helpful error message instead of technical exception
-      if (salt == null)
-        throw Exception('User not found. Please check your username.');
-
-      // SECURITY FIX: Always verify password BEFORE checking MFA status
-      // This prevents incorrect passwords from proceeding to MFA verification
-      final token = await _authService.login(username, password);
-      if (token == null)
+      final token = await _authService.login(widget.username, password);
+      if (token == null) {
         throw Exception('Incorrect password. Please try again.');
+      }
 
-      // Check if MFA is enabled
-      final mfaEnabled = await _authService.checkMfaStatus(username);
+      final mfaEnabled = await _authService.checkMfaStatus(widget.username);
 
       if (!mounted) return;
 
       if (mfaEnabled) {
-        // MFA is enabled - redirect to MFA verification page
-        // Note: The temporary token will be replaced after MFA verification
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => MfaVerifyPage(
-              username: username,
+              username: widget.username,
               password: password,
             ),
           ),
         );
       } else {
-        // Normal login without MFA - proceed to vault
         final vault = await _authService.getVault(token);
+        await _localAuthService.saveCredentials(widget.username, password);
 
         if (!mounted) return;
 
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (_) => VaultPage(
-              username: username,
+              username: widget.username,
               token: token,
               password: password,
               vaultResponse: vault,
             ),
           ),
+          (Route<dynamic> route) => false,
         );
       }
     } catch (e) {
@@ -1150,9 +1370,11 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -1161,7 +1383,6 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
-        // UI ENHANCEMENT: Theme toggle button for accessibility
         actions: [
           Consumer<SettingsProvider>(
             builder: (context, settings, _) {
@@ -1185,34 +1406,15 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           children: [
             SizedBox(height: MediaQuery.of(context).size.height * 0.06),
-            const AppHeroTitle(
-              title: 'Welcome Back',
-              subtitle: 'Unlock your vault',
-              icon: Icons.key_rounded,
+            AppHeroTitle(
+              title: 'Master Password',
+              subtitle: 'Welcome back, ${widget.username}',
+              icon: Icons.lock_outline_rounded,
             ),
             SizedBox(height: MediaQuery.of(context).size.height * 0.06),
-            // Username field
             FadeInUp(
               duration: const Duration(milliseconds: 500),
               delay: const Duration(milliseconds: 200),
-              child: Semantics(
-                label: 'Username input field',
-                child: TextField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
-                  ),
-                  textInputAction: TextInputAction.next,
-                  enabled: !_loading,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            // Password field
-            FadeInUp(
-              duration: const Duration(milliseconds: 500),
-              delay: const Duration(milliseconds: 330),
               child: Semantics(
                 label: 'Password input field',
                 child: TextField(
@@ -1229,10 +1431,9 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
             SizedBox(height: MediaQuery.of(context).size.height * 0.035),
-            // Login button
             FadeInUp(
               duration: const Duration(milliseconds: 500),
-              delay: const Duration(milliseconds: 460),
+              delay: const Duration(milliseconds: 330),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -1251,7 +1452,27 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ),
-            // Error message with animated entrance
+            if (_hasCredentials) ...[
+              SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+              FadeInUp(
+                duration: const Duration(milliseconds: 500),
+                delay: const Duration(milliseconds: 460),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.fingerprint_rounded),
+                    label: const Text('Login with Passkey'),
+                    onPressed: _loading ? null : _loginWithPasskey,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
@@ -1527,6 +1748,7 @@ class RegisterPasswordPage extends StatefulWidget {
 }
 
 class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
+  final _localAuthService = LocalAuthService();
   final _authService = AuthService();
   final _passwordController = TextEditingController();
 
@@ -1632,6 +1854,8 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
             'Registration succeeded but login failed. Please try logging in.');
 
       final vault = await _authService.getVault(token);
+      
+      await _localAuthService.saveCredentials(widget.username, password);
 
       if (!mounted) return;
 
