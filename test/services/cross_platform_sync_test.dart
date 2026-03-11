@@ -11,39 +11,69 @@ void main() {
   late AuthService authService;
   late MockClient mockClient;
 
+  const token = 'valid_token';
+
   setUp(() {
     mockClient = MockClient();
     authService = AuthService(client: mockClient);
   });
 
-  group('Cross Platform Synchronization (AuthService)', () {
-    test('getVault fetches the latest encrypted vault blob from server', () async {
-      const token = 'valid_token';
-      final vaultData = {
-        'blob': {
-          'vault_salt': '1234salt',
-          'nonce': '5678nonce',
-          'ciphertext': '90abcdef'
-        }
-      };
+  group('AuthService Cross Platform Sync Tests', () {
 
+    final validVault = {
+      'blob': {
+        'vault_salt': 'salt123',
+        'nonce': 'nonce123',
+        'ciphertext': 'cipher123'
+      }
+    };
+
+    test('getVault returns vault when server responds 200', () async {
       when(mockClient.get(
         Uri.parse('${AuthService.baseUrl}/vault'),
         headers: {'Authorization': token},
-      )).thenAnswer((_) async => http.Response(jsonEncode(vaultData), 200));
+      )).thenAnswer((_) async => http.Response(jsonEncode(validVault), 200));
 
       final result = await authService.getVault(token);
 
+      expect(result['blob']['vault_salt'], 'salt123');
       expect(result.containsKey('blob'), true);
-      expect(result['blob']['vault_salt'], '1234salt');
     });
 
-    test('updateVault successfully pushes encrypted blob to server', () async {
-      const token = 'valid_token';
+    test('getVault handles malformed JSON response', () async {
+      when(mockClient.get(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token},
+      )).thenAnswer((_) async => http.Response('invalid_json', 200));
+
+      expect(() async => await authService.getVault(token), throwsException);
+    });
+
+    test('getVault handles network exception', () async {
+      when(mockClient.get(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token},
+      )).thenThrow(Exception('Network error'));
+
+      expect(() async => await authService.getVault(token), throwsException);
+    });
+
+    test('getVault returns correct ciphertext', () async {
+      when(mockClient.get(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token},
+      )).thenAnswer((_) async => http.Response(jsonEncode(validVault), 200));
+
+      final result = await authService.getVault(token);
+
+      expect(result['blob']['ciphertext'], 'cipher123');
+    });
+
+    test('updateVault returns true when server confirms success', () async {
       final encryptedBlob = {
-        'vault_salt': '1234salt',
-        'nonce': '5678nonce',
-        'ciphertext': '90abcdef'
+        'vault_salt': 'salt123',
+        'nonce': 'nonce123',
+        'ciphertext': 'cipher123'
       };
 
       when(mockClient.post(
@@ -55,58 +85,41 @@ void main() {
       final result = await authService.updateVault(token, encryptedBlob);
 
       expect(result, true);
-
-      final capturedCall = verify(mockClient.post(
-        Uri.parse('${AuthService.baseUrl}/vault'),
-        headers: anyNamed('headers'),
-        body: captureAnyNamed('body'),
-      )).captured.single as String;
-
-      final bodyJson = jsonDecode(capturedCall);
-      expect(bodyJson.containsKey('blob'), true);
-      expect(bodyJson['blob']['vault_salt'], '1234salt');
     });
 
-    test('updateVault throws or returns false on failure', () async {
-      const token = 'valid_token';
-      final encryptedBlob = {
-        'vault_salt': 'new_salt'
-      };
+    test('updateVault returns false on server error', () async {
+      final encryptedBlob = {'vault_salt': 'salt123'};
 
       when(mockClient.post(
         Uri.parse('${AuthService.baseUrl}/vault'),
         headers: {'Authorization': token, 'Content-Type': 'application/json'},
         body: anyNamed('body'),
-      )).thenAnswer((_) async => http.Response(jsonEncode({'error': 'Server Error'}), 500));
+      )).thenAnswer((_) async => http.Response('Server error', 500));
 
       final result = await authService.updateVault(token, encryptedBlob);
+
       expect(result, false);
     });
 
-    test('Simulate full sync cycle: fetch, merge/modify, update', () async {
-      // 1. Fetch remote vault
-      const token = 'valid_token';
-      final remoteVaultData = {
-        'blob': {
-          'vault_salt': 'remote_salt',
-          'nonce': 'remote_nonce',
-          'ciphertext': 'remote_cipher'
-        }
-      };
+    test('updateVault handles authentication failure (401)', () async {
+      final encryptedBlob = {'vault_salt': 'salt123'};
 
-      when(mockClient.get(
+      when(mockClient.post(
         Uri.parse('${AuthService.baseUrl}/vault'),
-        headers: {'Authorization': token},
-      )).thenAnswer((_) async => http.Response(jsonEncode(remoteVaultData), 200));
+        headers: {'Authorization': token, 'Content-Type': 'application/json'},
+        body: anyNamed('body'),
+      )).thenAnswer((_) async => http.Response('Unauthorized', 401));
 
-      final pulledVault = await authService.getVault(token);
-      expect(pulledVault['blob']['vault_salt'], 'remote_salt');
+      final result = await authService.updateVault(token, encryptedBlob);
 
-      // 2. Modify vault (simulated locally) then update it
-      final newBlob = {
-        'vault_salt': 'merged_salt',
-        'nonce': 'merged_nonce',
-        'ciphertext': 'merged_cipher'
+      expect(result, false);
+    });
+
+    test('updateVault correctly sends blob structure', () async {
+      final encryptedBlob = {
+        'vault_salt': 'saltABC',
+        'nonce': 'nonceABC',
+        'ciphertext': 'cipherABC'
       };
 
       when(mockClient.post(
@@ -115,18 +128,92 @@ void main() {
         body: anyNamed('body'),
       )).thenAnswer((_) async => http.Response(jsonEncode({'ok': true}), 200));
 
-      final pushSuccess = await authService.updateVault(token, newBlob);
-      expect(pushSuccess, true);
+      await authService.updateVault(token, encryptedBlob);
 
-      // Verify the post had the new merged vault
-      final capturedCall = verify(mockClient.post(
+      final captured = verify(mockClient.post(
         Uri.parse('${AuthService.baseUrl}/vault'),
         headers: anyNamed('headers'),
         body: captureAnyNamed('body'),
       )).captured.single as String;
 
-      final bodyJson = jsonDecode(capturedCall);
-      expect(bodyJson['blob']['vault_salt'], 'merged_salt');
+      final body = jsonDecode(captured);
+
+      expect(body.containsKey('blob'), true);
+      expect(body['blob']['nonce'], 'nonceABC');
     });
+
+    test('full sync cycle works correctly', () async {
+
+      when(mockClient.get(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token},
+      )).thenAnswer((_) async => http.Response(jsonEncode(validVault), 200));
+
+      final pulledVault = await authService.getVault(token);
+
+      expect(pulledVault['blob']['vault_salt'], 'salt123');
+
+      final newBlob = {
+        'vault_salt': 'updatedSalt',
+        'nonce': 'updatedNonce',
+        'ciphertext': 'updatedCipher'
+      };
+
+      when(mockClient.post(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token, 'Content-Type': 'application/json'},
+        body: anyNamed('body'),
+      )).thenAnswer((_) async => http.Response(jsonEncode({'ok': true}), 200));
+
+      final success = await authService.updateVault(token, newBlob);
+
+      expect(success, true);
+    });
+
+    test('handles empty vault blob from server', () async {
+      final emptyVault = {'blob': {}};
+
+      when(mockClient.get(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token},
+      )).thenAnswer((_) async => http.Response(jsonEncode(emptyVault), 200));
+
+      final result = await authService.getVault(token);
+
+      expect(result['blob'], isEmpty);
+    });
+
+    test('large encrypted vault payload upload', () async {
+
+      final largeBlob = {
+        'vault_salt': 'salt',
+        'nonce': 'nonce',
+        'ciphertext': 'A' * 5000
+      };
+
+      when(mockClient.post(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token, 'Content-Type': 'application/json'},
+        body: anyNamed('body'),
+      )).thenAnswer((_) async => http.Response(jsonEncode({'ok': true}), 200));
+
+      final result = await authService.updateVault(token, largeBlob);
+
+      expect(result, true);
+    });
+
+    test('multiple sequential sync operations', () async {
+
+      when(mockClient.get(
+        Uri.parse('${AuthService.baseUrl}/vault'),
+        headers: {'Authorization': token},
+      )).thenAnswer((_) async => http.Response(jsonEncode(validVault), 200));
+
+      for (int i = 0; i < 5; i++) {
+        final vault = await authService.getVault(token);
+        expect(vault.containsKey('blob'), true);
+      }
+    });
+
   });
 }
